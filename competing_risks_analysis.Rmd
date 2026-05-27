@@ -1,0 +1,371 @@
+---
+title: "Untitled"
+output: html_document
+date: "2026-05-27"
+---
+
+# Outcomes Analysis: SRTR vs STAR MCS (3-Year Follow-up)
+
+```{r outcomes_srtr_vs_star}
+
+
+# SRTR cohort
+srtr_lvad_outcomes <- srtr_lvad_timeline %>%
+  filter(lvad_implant_date >= mdy("10-18-2018") &
+         lvad_implant_date <= mdy("12-31-2024")) %>%
+  left_join(cand_thor2025q2 %>%
+              dplyr::select(PX_ID, CAN_LISTING_DT, CAN_REM_DT, CAN_REM_CD,
+                           CAN_AGE_IN_MONTHS_AT_LISTING),
+            by = "PX_ID") %>%
+  filter(CAN_AGE_IN_MONTHS_AT_LISTING / 12 > 17) %>%
+  mutate(
+    removal_or_censor_date = if_else(is.na(CAN_REM_DT),
+                                     as.Date("2025-06-30"),
+                                     as.Date(CAN_REM_DT)),
+    end_date = removal_or_censor_date,
+    followup_time_original = as.numeric(difftime(end_date, lvad_implant_date, units = "days")) / 365.25,
+    followup_time = pmin(followup_time_original, 3),  # Cap at 3 years
+    event = case_when(
+      followup_time_original > 3 ~ 0,  # Censor if event occurred after 3 years
+      CAN_REM_CD %in% c(8, 13) ~ 1,
+      CAN_REM_CD == 4 ~ 2,
+      TRUE ~ 0
+    ),
+    event_factor = factor(event, levels = c(0, 1, 2),
+                          labels = c("Censored", "Death/Deterioration", "Transplant")),
+    data_source = "SRTR (MCS File)"
+  ) %>%
+  filter(followup_time > 0)
+
+# STAR MCS cohort
+star_lvad_outcomes <- star_lvad_mcs %>%
+  filter(first_lvad_implant >= mdy("10-18-2018") &
+         first_lvad_implant <= mdy("12-31-2024")) %>%
+  left_join(thoracic_data_2025q2 %>%
+              dplyr::select(WL_ID_CODE, INIT_DATE, END_DATE, REM_CD, INIT_AGE),
+            by = "WL_ID_CODE") %>%
+  filter(INIT_AGE > 17) %>%
+  mutate(
+    removal_or_censor_date = if_else(is.na(END_DATE),
+                                     as.Date("2025-06-30"),
+                                     as.Date(END_DATE)),
+    end_date = removal_or_censor_date,
+    followup_time_original = as.numeric(difftime(end_date, first_lvad_implant, units = "days")) / 365.25,
+    followup_time = pmin(followup_time_original, 3),  # Cap at 3 years
+    event = case_when(
+      followup_time_original > 3 ~ 0,  # Censor if event occurred after 3 years
+      REM_CD %in% c(8, 13) ~ 1,
+      REM_CD == 4 ~ 2,
+      TRUE ~ 0
+    ),
+    event_factor = factor(event, levels = c(0, 1, 2),
+                          labels = c("Censored", "Death/Deterioration", "Transplant")),
+    data_source = "STAR (MCS File)"
+  ) %>%
+  filter(followup_time > 0)
+
+cat("SRTR outcomes cohort:", nrow(srtr_lvad_outcomes), "patients\n")
+cat("  Deaths/Deterioration:", sum(srtr_lvad_outcomes$event == 1), "\n")
+cat("  Transplants:", sum(srtr_lvad_outcomes$event == 2), "\n")
+cat("  Censored:", sum(srtr_lvad_outcomes$event == 0), "\n\n")
+
+cat("STAR outcomes cohort:", nrow(star_lvad_outcomes), "patients\n")
+cat("  Deaths/Deterioration:", sum(star_lvad_outcomes$event == 1), "\n")
+cat("  Transplants:", sum(star_lvad_outcomes$event == 2), "\n")
+cat("  Censored:", sum(star_lvad_outcomes$event == 0), "\n")
+
+
+
+combined_outcomes <- bind_rows(
+  srtr_lvad_outcomes %>% dplyr::select(followup_time, event_factor, data_source),
+  star_lvad_outcomes %>% dplyr::select(followup_time, event_factor, data_source)
+) %>%
+  mutate(data_source = factor(data_source, levels = c("SRTR (MCS File)", "STAR (MCS File)")))
+
+# Cumulative incidence
+cif_fit_2db <- tidycmprsk::cuminc(Surv(followup_time, event_factor) ~ data_source,
+                                   data = combined_outcomes)
+
+
+
+# Fine-Gray tests
+fg_transplant_2db <- tidycmprsk::crr(Surv(followup_time, event_factor) ~ data_source,
+                                      data = combined_outcomes,
+                                      failcode = "Transplant")
+fg_death_2db <- tidycmprsk::crr(Surv(followup_time, event_factor) ~ data_source,
+                                 data = combined_outcomes,
+                                 failcode = "Death/Deterioration")
+
+p_transplant_2db <- tidy(fg_transplant_2db)$p.value[1]
+p_death_2db <- tidy(fg_death_2db)$p.value[1]
+
+cat("\n=== FINE-GRAY TESTS: SRTR vs STAR ===\n")
+cat("Transplant p:", format.pval(p_transplant_2db, digits = 3), "\n")
+cat("Death/Deterioration p:", format.pval(p_death_2db, digits = 3), "\n")
+
+# ============================================================================
+# PLOT
+# ============================================================================
+
+fmt_p <- function(p) {
+  if (p < 0.001) "p<0.001" else paste0("p=", format.pval(p, digits = 3))
+}
+
+
+
+conflicts_prefer(ggsurvfit::add_risktable)
+
+cif_plot_2db <- cif_fit_2db %>%
+  ggcuminc(
+    outcome = c("Death/Deterioration", "Transplant"),
+    linewidth = 1.2
+  ) +
+  add_confidence_interval(alpha = 0.2) +
+  ggsurvfit::add_risktable(
+    size = 5,
+    risktable_height = 0.25,
+    theme = ggsurvfit::theme_risktable_default(
+      plot.title.size = 14,
+      axis.text.y.size = 14
+    )
+  ) +
+  scale_x_continuous(breaks = 0:3, limits = c(0, 3)) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    labels = scales::percent,
+    expand = c(0.01, 0)
+  ) +
+  xlab("Years from LVAD Implantation") +
+  ylab("Cumulative Incidence") +
+  scale_color_manual(
+    values = c("SRTR (MCS File)" = "coral", "STAR (MCS File)" = "steelblue"),
+    name = "Data Source"
+  ) +
+  scale_fill_manual(
+    values = c("SRTR (MCS File)" = "coral", "STAR (MCS File)" = "steelblue"),
+    name = "Data Source"
+  ) +
+  scale_linetype_discrete(name = "Outcome") +
+  guides(
+    color = guide_legend(order = 1, nrow = 1),
+    fill = guide_legend(order = 1, nrow = 1),
+    linetype = guide_legend(order = 2, nrow = 1)
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.title = element_text(size = 15, face = "bold"),
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 15),
+    legend.text = element_text(size = 15)
+  )
+
+print(cif_plot_2db)
+
+
+
+cif_summary_3yr <- cif_fit_2db %>%
+  tidy() %>%
+  filter(time <= 3.5) %>%  # Look within reasonable range of 3 years
+  group_by(outcome, strata) %>%
+  filter(abs(time - 3) == min(abs(time - 3))) %>%  # Find closest to 3 years
+  ungroup() %>%
+  mutate(
+    time_year = round(time, 2),
+    estimate_pct = round(estimate * 100, 1),
+    conf_low_pct = round(conf.low * 100, 1),
+    conf_high_pct = round(conf.high * 100, 1)
+  ) %>%
+  select(outcome, strata, time_year, estimate_pct, conf_low_pct, conf_high_pct)
+
+cat("\n=== CUMULATIVE INCIDENCE AT 3 YEARS ===\n")
+print(cif_summary_3yr)
+
+# Alternatively, for a nicer formatted table:
+cif_summary_3yr_wide <- cif_summary_3yr %>%
+  mutate(
+    ci = paste0(estimate_pct, "% (", conf_low_pct, "-", conf_high_pct, "%)")
+  ) %>%
+  select(outcome, strata, ci) %>%
+  tidyr::pivot_wider(names_from = strata, values_from = ci)
+
+cat("\n=== FORMATTED 3-YEAR CUMULATIVE INCIDENCE ===\n")
+print(cif_summary_3yr_wide)
+
+
+
+
+
+# Calculate median follow-up time
+
+# SRTR cohort
+srtr_median_followup <- median(srtr_lvad_outcomes$followup_time_original, na.rm = TRUE)
+srtr_iqr_followup <- quantile(srtr_lvad_outcomes$followup_time_original, 
+                               probs = c(0.25, 0.75), na.rm = TRUE)
+
+cat("SRTR Median Follow-up:", round(srtr_median_followup, 2), "years\n")
+cat("SRTR IQR:", round(srtr_iqr_followup[1], 2), "-", 
+    round(srtr_iqr_followup[2], 2), "years\n\n")
+
+# STAR cohort
+star_median_followup <- median(star_lvad_outcomes$followup_time_original, na.rm = TRUE)
+star_iqr_followup <- quantile(star_lvad_outcomes$followup_time_original, 
+                               probs = c(0.25, 0.75), na.rm = TRUE)
+
+cat("STAR Median Follow-up:", round(star_median_followup, 2), "years\n")
+cat("STAR IQR:", round(star_iqr_followup[1], 2), "-", 
+    round(star_iqr_followup[2], 2), "years\n\n")
+
+# Summary table
+followup_summary <- data.frame(
+  Cohort = c("SRTR", "OPTN STAR"),
+  `Median (years)` = c(round(srtr_median_followup, 2), 
+                       round(star_median_followup, 2)),
+  `IQR (years)` = c(paste0(round(srtr_iqr_followup[1], 2), "-", 
+                           round(srtr_iqr_followup[2], 2)),
+                    paste0(round(star_iqr_followup[1], 2), "-", 
+                           round(star_iqr_followup[2], 2)))
+)
+
+print(followup_summary)
+```
+
+``` {r sensitivity with competing risks}
+
+# SENSITIVITY: Use listing date as time zero for pre-listing LVAD recipients
+
+srtr_lvad_outcomes_sensitivity <- srtr_lvad_timeline %>%
+  filter(lvad_implant_date >= mdy("10-18-2018") &
+         lvad_implant_date <= mdy("12-31-2024")) %>%
+  left_join(cand_thor2025q2 %>%
+              dplyr::select(PX_ID, CAN_LISTING_DT, CAN_REM_DT, CAN_REM_CD,
+                           CAN_AGE_IN_MONTHS_AT_LISTING),
+            by = "PX_ID") %>%
+  filter(CAN_AGE_IN_MONTHS_AT_LISTING / 12 > 17) %>%
+  mutate(
+    # Use later of LVAD implant or listing date as time zero
+    time_zero = pmax(lvad_implant_date, CAN_LISTING_DT),
+    removal_or_censor_date = if_else(is.na(CAN_REM_DT),
+                                     as.Date("2025-06-30"),
+                                     as.Date(CAN_REM_DT)),
+    end_date = removal_or_censor_date,
+    followup_time_original = as.numeric(difftime(end_date, time_zero, units = "days")) / 365.25,
+    followup_time = pmin(followup_time_original, 3),
+    event = case_when(
+      followup_time_original > 3 ~ 0,
+      CAN_REM_CD %in% c(8, 13) ~ 1,
+      CAN_REM_CD == 4 ~ 2,
+      TRUE ~ 0
+    ),
+    event_factor = factor(event, levels = c(0, 1, 2),
+                          labels = c("Censored", "Death/Deterioration", "Transplant")),
+    data_source = "SRTR (MCS File)"
+  ) %>%
+  filter(followup_time > 0)
+
+star_lvad_outcomes_sensitivity <- star_lvad_mcs %>%
+  filter(first_lvad_implant >= mdy("10-18-2018") &
+         first_lvad_implant <= mdy("12-31-2024")) %>%
+  left_join(thoracic_data_2025q2 %>%
+              dplyr::select(WL_ID_CODE, INIT_DATE, END_DATE, REM_CD, INIT_AGE),
+            by = "WL_ID_CODE") %>%
+  filter(INIT_AGE > 17) %>%
+  mutate(
+    time_zero = pmax(first_lvad_implant, INIT_DATE),
+    removal_or_censor_date = if_else(is.na(END_DATE),
+                                     as.Date("2025-06-30"),
+                                     as.Date(END_DATE)),
+    end_date = removal_or_censor_date,
+    followup_time_original = as.numeric(difftime(end_date, time_zero, units = "days")) / 365.25,
+    followup_time = pmin(followup_time_original, 3),
+    event = case_when(
+      followup_time_original > 3 ~ 0,
+      REM_CD %in% c(8, 13) ~ 1,
+      REM_CD == 4 ~ 2,
+      TRUE ~ 0
+    ),
+    event_factor = factor(event, levels = c(0, 1, 2),
+                          labels = c("Censored", "Death/Deterioration", "Transplant")),
+    data_source = "STAR (MCS File)"
+  ) %>%
+  filter(followup_time > 0)
+
+# Combine and run CIF
+combined_outcomes_sensitivity <- bind_rows(
+  srtr_lvad_outcomes_sensitivity %>% dplyr::select(followup_time, event_factor, data_source),
+  star_lvad_outcomes_sensitivity %>% dplyr::select(followup_time, event_factor, data_source)
+) %>%
+  mutate(data_source = factor(data_source, levels = c("SRTR (MCS File)", "STAR (MCS File)")))
+
+cif_fit_sensitivity <- tidycmprsk::cuminc(Surv(followup_time, event_factor) ~ data_source,
+                                           data = combined_outcomes_sensitivity)
+
+# Extract 3-year estimates
+cif_sensitivity_3yr <- cif_fit_sensitivity %>%
+  tidy() %>%
+  dplyr::filter(time <= 3.5) %>%
+  group_by(outcome, strata) %>%
+  dplyr::filter(abs(time - 3) == min(abs(time - 3))) %>%
+  ungroup() %>%
+  mutate(
+    estimate_pct = round(estimate * 100, 1),
+    conf_low_pct = round(conf.low * 100, 1),
+    conf_high_pct = round(conf.high * 100, 1)
+  ) %>%
+  dplyr::select(outcome, strata, estimate_pct, conf_low_pct, conf_high_pct)
+
+cat("\n=== SENSITIVITY: 3-YEAR CIF USING LISTING DATE AS TIME ZERO ===\n")
+print(cif_sensitivity_3yr)
+
+
+cif_plot_sensitivity <- cif_fit_sensitivity %>%
+  ggcuminc(
+    outcome = c("Death/Deterioration", "Transplant"),
+    linewidth = 1.2
+  ) +
+  add_confidence_interval(alpha = 0.2) +
+  ggsurvfit::add_risktable(
+    size = 5,
+    risktable_height = 0.25,
+    theme = ggsurvfit::theme_risktable_default(
+      plot.title.size = 14,
+      axis.text.y.size = 14
+    )
+  ) +
+  scale_x_continuous(breaks = 0:3, limits = c(0, 3)) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    labels = scales::percent,
+    expand = c(0.01, 0)
+  ) +
+  xlab("Years from Initial Listing") +
+  ylab("Cumulative Incidence") +
+  scale_color_manual(
+    values = c("SRTR (MCS File)" = "coral", "STAR (MCS File)" = "steelblue"),
+    name = "Data Source"
+  ) +
+  scale_fill_manual(
+    values = c("SRTR (MCS File)" = "coral", "STAR (MCS File)" = "steelblue"),
+    name = "Data Source"
+  ) +
+  scale_linetype_discrete(name = "Outcome") +
+  guides(
+    color = guide_legend(order = 1, nrow = 1),
+    fill = guide_legend(order = 1, nrow = 1),
+    linetype = guide_legend(order = 2, nrow = 1)
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.title = element_text(size = 15, face = "bold"),
+    axis.text = element_text(size = 15),
+    axis.title = element_text(size = 15),
+    legend.text = element_text(size = 15)
+  )
+
+print(cif_plot_sensitivity)
+
+
+```

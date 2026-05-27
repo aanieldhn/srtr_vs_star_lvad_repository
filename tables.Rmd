@@ -1,0 +1,370 @@
+---
+title: "Untitled"
+output: html_document
+date: "2026-05-27"
+---
+```{r supplemental_tables}
+library(knitr)
+library(kableExtra)
+
+#Prevalence table for SRTR
+
+srtr_status_prevalence_table <- combined_plot_data %>%
+  select(
+    date,
+    date_label,
+    total_status4,
+    status4_with_lvad,
+    total_with_lvad
+  ) %>%
+  mutate(
+    Date = date_label,
+    `Total Status 4` = total_status4,
+    `Status 4 with LVAD` = status4_with_lvad,
+    `Total LVAD Prevalence` = total_with_lvad
+  ) %>%
+  select(Date, `Total Status 4`, `Status 4 with LVAD`, `Total LVAD Prevalence`)
+
+cat("\n=== SRTR STATUS 4 AND PREVALENCE TABLE ===\n\n")
+print(srtr_status_prevalence_table)
+
+# Create formatted HTML table
+srtr_status_html <- kable(srtr_status_prevalence_table, format = "html", 
+                          caption = "Table: SRTR Status 4 Composition and LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE, font_size = 11) %>%
+  add_header_above(c(" " = 1, "Status 4 Composition" = 2, "Prevalence" = 1))
+
+#Prevalence table for STAR
+
+star_status_prevalence_table <- star_combined_plot_data %>%
+  select(
+    date,
+    date_label,
+    total_status4,
+    status4_with_lvad,
+    total_with_lvad
+  ) %>%
+  mutate(
+    Date = date_label,
+    `Total Status 4` = total_status4,
+    `Status 4 with LVAD` = status4_with_lvad,
+    `Total LVAD Prevalence` = total_with_lvad
+  ) %>%
+  select(Date, `Total Status 4`, `Status 4 with LVAD`, `Total LVAD Prevalence`)
+
+cat("\n=== STAR STATUS 4 AND PREVALENCE TABLE ===\n\n")
+print(star_status_prevalence_table)
+
+# Create formatted HTML table
+star_status_html <- kable(star_status_prevalence_table, format = "html",
+                          caption = "Table: STAR Status 4 Composition and LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) %>%
+  add_header_above(c(" " = 1, "Status 4 Composition" = 2, "Prevalence" = 1))
+
+srtr_flow_table <- flow_results_df %>%
+  mutate(
+    Period = period_label,
+    `New Listings with LVAD` = new_listings_with_lvad,
+    `LVAD Implants on Waitlist` = lvad_implants_on_waitlist
+  ) %>%
+  select(Period, `New Listings with LVAD`, `LVAD Implants on Waitlist`)
+
+cat("\n=== SRTR FLOW TABLE ===\n\n")
+print(srtr_flow_table)
+
+# Create formatted HTML table
+srtr_flow_html <- kable(srtr_flow_table, format = "html",
+                        caption = "Table: SRTR Waitlist Flow Dynamics") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11)
+
+
+star_flow_table <- star_flow_df %>%
+  mutate(
+    Period = period_label,
+    `New Listings with LVAD` = new_listings_with_lvad,
+    `LVAD Implants on Waitlist` = lvad_implants_on_waitlist
+  ) %>%
+  select(Period, `New Listings with LVAD`, `LVAD Implants on Waitlist`)
+
+cat("\n=== STAR FLOW TABLE ===\n\n")
+print(star_flow_table)
+
+# Create formatted HTML table
+star_flow_html <- kable(star_flow_table, format = "html",
+                        caption = "Table: STAR Waitlist Flow Dynamics") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11)
+
+
+
+srtr_prevalence_html <- prevalence_results_df %>%
+  select(date_label, total_waitlist, total_with_lvad, lvad_proportion) %>%
+  mutate(lvad_proportion = round(lvad_proportion, 2)) %>%
+  kable(format = "html",
+        col.names = c("Date", "Total Waitlist", "Total with LVAD", "LVAD %"),
+        align = c('l', 'r', 'r', 'r'),
+        caption = "Table: SRTR LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11)
+
+
+star_prevalence_html <- star_prevalence_df %>%
+  select(date_label, total_waitlist, total_with_lvad, lvad_proportion) %>%
+  mutate(lvad_proportion = round(lvad_proportion, 2)) %>%
+  kable(format = "html",
+        col.names = c("Date", "Total Waitlist", "Total with LVAD", "LVAD %"),
+        align = c('l', 'r', 'r', 'r'),
+        caption = "Table: STAR LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11)
+
+
+srtr_combined_table <- combined_plot_data %>%
+  select(date, date_label, total_status4, status4_with_lvad, total_with_lvad) %>%
+  left_join(
+    prevalence_results_df %>%
+      select(date, total_waitlist, lvad_proportion) %>%
+      mutate(lvad_proportion = round(lvad_proportion, 2)),
+    by = "date"
+  ) %>%
+  select(
+    Date = date_label,
+    `Total Waitlist` = total_waitlist,
+    `Total Status 4` = total_status4,
+    `Status 4 with LVAD` = status4_with_lvad,
+    `Total LVAD Prevalence` = total_with_lvad,
+    `LVAD %` = lvad_proportion
+  )
+
+srtr_combined_html <- kable(srtr_combined_table, format = "html",
+                            caption = "Table: SRTR Status 4 Composition and LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) %>%
+  add_header_above(c(" " = 1, " " = 1, "Status 4 Composition" = 2, "LVAD Prevalence" = 2))
+
+
+star_combined_table <- star_combined_plot_data %>%
+  select(date, date_label, total_status4, status4_with_lvad, total_with_lvad) %>%
+  left_join(
+    star_prevalence_df %>%
+      select(date, total_waitlist, lvad_proportion) %>%
+      mutate(lvad_proportion = round(lvad_proportion, 2)),
+    by = "date"
+  ) %>%
+  select(
+    Date = date_label,
+    `Total Waitlist` = total_waitlist,
+    `Total Status 4` = total_status4,
+    `Status 4 with LVAD` = status4_with_lvad,
+    `Total LVAD Prevalence` = total_with_lvad,
+    `LVAD %` = lvad_proportion
+  )
+
+star_combined_html <- kable(star_combined_table, format = "html",
+                            caption = "Table: STAR Status 4 Composition and LVAD Prevalence") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) %>%
+  add_header_above(c(" " = 1, " " = 1, "Status 4 Composition" = 2, "LVAD Prevalence" = 2))
+```
+
+
+# Table 1: Baseline Characteristics (No Statistical Tests)
+```{r table1}
+library(gtsummary)
+library(labelled)
+
+# Define LVAD keywords
+lvad_keywords <- c("heartmate", "hm", "lionheart", "arrow", "jarvik", "micromed", 
+                   "debakey", "novacor", "evaheart", "worldheart", "levacor", 
+                   "reliantheart", "hvad", "heartsaver")
+
+
+srtr_table1 <- srtr_lvad_outcomes %>%
+  select(PX_ID, lvad_implant_date) %>%
+  left_join(
+    cand_thor2025q2 %>%
+      select(PX_ID, CAN_GENDER, CAN_RACE, CAN_ETHNICITY_SRTR, 
+             CAN_AGE_IN_MONTHS_AT_LISTING, CAN_BMI, CAN_ABO, 
+             CAN_DGN, CAN_PRIMARY_PAY, CAN_LISTING_DT),
+    by = "PX_ID"
+  ) %>%
+  left_join(
+    thor_support_device %>%
+      filter(DeviceTypeId == 12 & VentricularSupportId == 1) %>%
+      group_by(PX_ID) %>%
+      arrange(ImplantDt) %>%
+      slice(1) %>%
+      ungroup() %>%
+      select(PX_ID, VadBrandId),
+    by = "PX_ID"
+  ) %>%
+  mutate(
+    data_source = "SRTR",
+    age_at_listing = floor(CAN_AGE_IN_MONTHS_AT_LISTING / 12),
+    age_at_lvad = floor(CAN_AGE_IN_MONTHS_AT_LISTING / 12) + 
+      as.numeric(difftime(lvad_implant_date, CAN_LISTING_DT, units = "days")) / 365.25,
+    age_at_lvad = floor(age_at_lvad),
+    sex = ifelse(CAN_GENDER == "M", "Male", "Female"),
+    sex = factor(sex, levels = c("Male", "Female")),
+    race = case_when(
+      is.na(CAN_RACE) & CAN_ETHNICITY_SRTR == "LATINO" ~ "Hispanic/Latino",
+      CAN_RACE == 8 & CAN_ETHNICITY_SRTR == "NLATIN" ~ "White",
+      CAN_RACE == 16 & CAN_ETHNICITY_SRTR == "NLATIN" ~ "Black",
+      CAN_RACE == 64 & CAN_ETHNICITY_SRTR == "NLATIN" ~ "Asian",
+      TRUE ~ "Other"),
+    race = factor(race, levels = c("White", "Black", "Hispanic/Latino", "Asian", "Other")),
+    bmi_categories = case_when(
+      CAN_BMI < 18 ~ "Underweight",
+      CAN_BMI >= 18 & CAN_BMI < 25 ~ "Normal",
+      CAN_BMI >= 25 & CAN_BMI < 30 ~ "Overweight",
+      CAN_BMI >= 30 ~ "Obese",
+      TRUE ~ "Unknown"),
+    bmi_categories = factor(bmi_categories, levels = c("Normal", "Underweight", "Overweight", "Obese", "Unknown")),
+    blood_type = factor(
+      case_when(
+        CAN_ABO %in% c("A", "A1", "A2") ~ "A",
+        CAN_ABO %in% c("A1B", "A2B") ~ "AB",
+        TRUE ~ CAN_ABO)),
+    diagnosis = case_when(
+      CAN_DGN > 999 & CAN_DGN < 1007 ~ "Dilated Cardiomyopathy, Non-Ischemic",
+      CAN_DGN == 1007 | CAN_DGN == 1200 ~ "Ischemic Cardiomyopathy",
+      CAN_DGN > 1048 & CAN_DGN < 1100 ~ "Restrictive Cardiomyopathy",
+      CAN_DGN == 1203 | (CAN_DGN >= 1205 & CAN_DGN <= 1207) ~ "Congenital Heart Disease",
+      TRUE ~ "Other"),
+    diagnosis = factor(diagnosis, levels = c("Dilated Cardiomyopathy, Non-Ischemic", "Ischemic Cardiomyopathy", 
+                                             "Restrictive Cardiomyopathy", "Congenital Heart Disease", "Other")),
+    payor = case_when(
+      CAN_PRIMARY_PAY %in% c(2, 3, 4, 5, 6, 7, 13) ~ "Public",
+      CAN_PRIMARY_PAY == 1 ~ "Private",
+      TRUE ~ "Other"),
+    payor = factor(payor, levels = c("Private", "Public", "Other")),
+    lvad_type = case_when(
+      VadBrandId %in% c('236', '330') ~ "HeartMate 3",
+      VadBrandId %in% c('205', '313') ~ "HeartMate II",
+      VadBrandId %in% c('224', '316') ~ "HVAD",
+      TRUE ~ "Other"),
+    lvad_type = factor(lvad_type, levels = c("HeartMate 3", "HeartMate II", "HVAD", "Other"))
+  )
+
+cat("SRTR Table 1 data prepared:", nrow(srtr_table1), "patients\n")
+
+
+star_table1 <- star_lvad_outcomes %>%
+  select(WL_ID_CODE, first_lvad_implant) %>%
+  rename(lvad_implant_date = first_lvad_implant) %>%
+  left_join(
+    thoracic_data_2025q2 %>%
+      select(WL_ID_CODE, GENDER, ETHCAT, INIT_AGE, INIT_WGT_KG_CALC, 
+             INIT_HGT_CM_CALC, ABO, TCR_DGN, PRI_PAYMENT_TCR, INIT_DATE),
+    by = "WL_ID_CODE"
+  ) %>%
+  left_join(
+    thoracic_mcs_device_2025q2 %>%
+      filter(DEVICE_TYPE == "Dischargeable VAD") %>%
+      filter(VENTRICULAR_SUPPORT == "Left") %>%
+      group_by(WL_ID_CODE) %>%
+      arrange(IMPLANT_DATE) %>%
+      slice(1) %>%
+      ungroup() %>%
+      select(WL_ID_CODE, LVAD_BRAND, VAD_BRAND),
+    by = "WL_ID_CODE"
+  ) %>%
+  mutate(
+    data_source = "OPTN STAR",
+    age_at_listing = floor(INIT_AGE),
+    age_at_lvad = INIT_AGE + as.numeric(difftime(lvad_implant_date, INIT_DATE, units = "days")) / 365.25,
+    age_at_lvad = floor(age_at_lvad),
+    sex = ifelse(GENDER == "M", "Male", "Female"),
+    sex = factor(sex, levels = c("Male", "Female")),
+    race = case_when(
+      ETHCAT == 1 ~ "White",
+      ETHCAT == 2 ~ "Black",
+      ETHCAT == 4 ~ "Hispanic/Latino",
+      ETHCAT == 5 ~ "Asian",
+      TRUE ~ "Other"),
+    race = factor(race, levels = c("White", "Black", "Hispanic/Latino", "Asian", "Other")),
+    bmi = INIT_WGT_KG_CALC / ((INIT_HGT_CM_CALC / 100) * (INIT_HGT_CM_CALC / 100)),
+    bmi_categories = case_when(
+      bmi < 18 ~ "Underweight",
+      bmi >= 18 & bmi < 25 ~ "Normal",
+      bmi >= 25 & bmi < 30 ~ "Overweight",
+      bmi >= 30 ~ "Obese",
+      TRUE ~ "Unknown"),
+    bmi_categories = factor(bmi_categories, levels = c("Normal", "Underweight", "Overweight", "Obese", "Unknown")),
+    blood_type = factor(
+      case_when(
+        ABO %in% c("A", "A1", "A2") ~ "A",
+        ABO %in% c("A1B", "A2B") ~ "AB",
+        TRUE ~ ABO)),
+    diagnosis = case_when(
+      TCR_DGN > 999 & TCR_DGN < 1007 ~ "Dilated Cardiomyopathy, Non-Ischemic",
+      TCR_DGN == 1007 | TCR_DGN == 1200 ~ "Ischemic Cardiomyopathy",
+      TCR_DGN > 1048 & TCR_DGN < 1100 ~ "Restrictive Cardiomyopathy",
+      TCR_DGN == 1203 | (TCR_DGN >= 1205 & TCR_DGN <= 1207) ~ "Congenital Heart Disease",
+      TRUE ~ "Other"),
+    diagnosis = factor(diagnosis, levels = c("Dilated Cardiomyopathy, Non-Ischemic", "Ischemic Cardiomyopathy", 
+                                             "Restrictive Cardiomyopathy", "Congenital Heart Disease", "Other")),
+    payor = case_when(
+      PRI_PAYMENT_TCR == 1 ~ "Private",
+      PRI_PAYMENT_TCR %in% c(2, 3, 4, 5, 6, 7, 13) ~ "Public",
+      TRUE ~ "Other"),
+    payor = factor(payor, levels = c("Private", "Public", "Other")),
+    device_brand = coalesce(VAD_BRAND, LVAD_BRAND),
+    lvad_type = case_when(
+      grepl("HeartMate 3|HM3|HM 3|HeartMate III", device_brand, ignore.case = TRUE) ~ "HeartMate 3",
+      grepl("HeartMate II|HMII|HM II|HM2|HM 2", device_brand, ignore.case = TRUE) ~ "HeartMate II",
+      grepl("HVAD|HeartWare", device_brand, ignore.case = TRUE) ~ "HVAD",
+      TRUE ~ "Other"),
+    lvad_type = factor(lvad_type, levels = c("HeartMate 3", "HeartMate II", "HVAD", "Other"))
+  )
+
+cat("STAR Table 1 data prepared:", nrow(star_table1), "patients\n")
+
+# ============================================================================
+# COMBINE AND CREATE TABLE 1 (NO P-VALUES)
+# ============================================================================
+
+combined_table1 <- bind_rows(
+  srtr_table1 %>% select(data_source, age_at_listing, age_at_lvad, sex, race, bmi_categories, 
+                         blood_type, diagnosis, payor, lvad_type),
+  star_table1 %>% select(data_source, age_at_listing, age_at_lvad, sex, race, bmi_categories, 
+                         blood_type, diagnosis, payor, lvad_type)
+) %>%
+  mutate(data_source = factor(data_source, levels = c("SRTR", "OPTN STAR")))
+
+# Set variable labels
+var_label_list <- list(
+  age_at_listing = "Age at Listing (Years)",
+  age_at_lvad = "Age at LVAD Implant (Years)",
+  sex = "Sex",
+  race = "Race/Ethnicity",
+  bmi_categories = "BMI Category",
+  blood_type = "Blood Type",
+  diagnosis = "Primary Diagnosis",
+  payor = "Insurance Type",
+  lvad_type = "LVAD Device Type"
+)
+
+labelled::var_label(combined_table1) <- var_label_list
+
+# Create table WITHOUT p-values
+table1 <- combined_table1 %>%
+  tbl_summary(
+    by = data_source,
+    digits = list(all_categorical() ~ c(0, 1)),
+    missing = "no"
+  ) %>%
+  add_overall() %>%
+  modify_header(label ~ "**Characteristic**") %>%
+  modify_caption("**Table 1. Baseline Characteristics of LVAD Cohorts by Data Source**") %>%
+  modify_footnote(all_stat_cols() ~ "Cohorts are not independent; statistical testing not performed") %>%
+  bold_labels()
+
+print(table1)
+
+colSums(is.na(combined_table1))
+
+```

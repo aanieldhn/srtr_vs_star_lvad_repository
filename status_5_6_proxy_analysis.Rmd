@@ -1,0 +1,106 @@
+---
+title: "Untitled"
+output: html_document
+date: "2026-05-27"
+---
+
+
+# Status 5/6 Validation Analysis
+
+```{r status56_validation}
+#In this code we tested whether status 5/6 was a reasonable proxy for LVAD explantation. We showed that it is a very poor marker.
+
+
+mcs_file_cohort <- lvads_from_mcs_file_optn %>%
+  group_by(WL_ID_CODE) %>%
+  arrange(IMPLANT_DATE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    lvad_implant = as.Date(IMPLANT_DATE, origin = "1970-01-01"),
+    explant_date = as.Date(EXPLANT_DATE, origin = "1970-01-01"),
+    has_explant = !is.na(EXPLANT_DATE) & MCS_REM_REASON != "Transplanted"
+  ) %>%
+  dplyr::select(WL_ID_CODE, lvad_implant, explant_date, has_explant, MCS_REM_REASON)
+
+cat("MCS file cohort (delisted patients):", nrow(mcs_file_cohort), "\n")
+cat("With documented non-transplant explants:", sum(mcs_file_cohort$has_explant), "\n\n")
+
+# ============================================================================
+# SENSITIVITY: Of true explants, how many went to Status 5/6?
+# ============================================================================
+
+true_explants <- mcs_file_cohort %>%
+  dplyr::filter(has_explant) %>%
+  left_join(
+    thoracic_wlhistory_data_2025q2 %>%
+      dplyr::select(WL_ID_CODE, UNOS_CAND_STAT_CD, CHG_DATE),
+    by = "WL_ID_CODE"
+  ) %>%
+  dplyr::filter(CHG_DATE >= lvad_implant & CHG_DATE <= explant_date) %>%
+  mutate(is_status_56 = UNOS_CAND_STAT_CD %in% c(1150, 1160, 2150, 2160)) %>%
+  group_by(WL_ID_CODE, lvad_implant, explant_date, MCS_REM_REASON) %>%
+  dplyr::summarize(went_to_status_56 = any(is_status_56), .groups = "drop")
+
+cat("=== SENSITIVITY ANALYSIS ===\n")
+cat("Documented explants:", nrow(true_explants), "\n")
+cat("Went to Status 5/6 before explant:", sum(true_explants$went_to_status_56), "\n")
+cat("Never went to Status 5/6:", sum(!true_explants$went_to_status_56), "\n")
+cat("Sensitivity:", round(sum(true_explants$went_to_status_56) / nrow(true_explants) * 100, 1), "%\n\n")
+
+cat("By removal reason:\n")
+print(true_explants %>%
+  group_by(MCS_REM_REASON) %>%
+  dplyr::summarize(
+    total = n(),
+    went_to_56 = sum(went_to_status_56),
+    pct_56 = round(sum(went_to_status_56) / n() * 100, 1)
+  ) %>%
+  arrange(desc(total)))
+
+# ============================================================================
+# POSITIVE PREDICTIVE VALUE: Of Status 5/6 transitions, how many had explants?
+# ============================================================================
+
+status56_in_cohort <- mcs_file_cohort %>%
+  left_join(
+    thoracic_wlhistory_data_2025q2 %>%
+      dplyr::select(WL_ID_CODE, UNOS_CAND_STAT_CD, CHG_DATE),
+    by = "WL_ID_CODE"
+  ) %>%
+  dplyr::filter(CHG_DATE >= lvad_implant) %>%
+  mutate(is_status_56 = UNOS_CAND_STAT_CD %in% c(1150, 1160, 2150, 2160)) %>%
+  group_by(WL_ID_CODE, lvad_implant, explant_date, has_explant) %>%
+  dplyr::summarize(went_to_status_56 = any(is_status_56), .groups = "drop") %>%
+  dplyr::filter(went_to_status_56)
+
+cat("\n=== POSITIVE PREDICTIVE VALUE ===\n")
+cat("Patients who went to Status 5/6:", nrow(status56_in_cohort), "\n")
+cat("Had documented explant:", sum(status56_in_cohort$has_explant), "\n")
+cat("Never had explant:", sum(!status56_in_cohort$has_explant), "\n")
+cat("PPV (% with actual explant):", 
+    round(sum(status56_in_cohort$has_explant) / nrow(status56_in_cohort) * 100, 1), "%\n\n")
+
+# ============================================================================
+# SPECIFICITY CALCULATION
+# ============================================================================
+
+without_explant <- sum(!mcs_file_cohort$has_explant)
+went_to_56_no_explant <- sum(!status56_in_cohort$has_explant)
+never_56_no_explant <- without_explant - went_to_56_no_explant
+
+cat("=== SPECIFICITY ===\n")
+cat("Patients without explant:", without_explant, "\n")
+cat("Went to Status 5/6 (false positive):", went_to_56_no_explant, "\n")
+cat("Never went to Status 5/6 (true negative):", never_56_no_explant, "\n")
+cat("Specificity:", round(never_56_no_explant / without_explant * 100, 1), "%\n\n")
+
+cat("=== SUMMARY ===\n")
+cat("Status 5/6 as explant proxy:\n")
+cat("  Sensitivity:", round(sum(true_explants$went_to_status_56) / nrow(true_explants) * 100, 1), 
+    "% (misses", round((1 - sum(true_explants$went_to_status_56) / nrow(true_explants)) * 100, 1), 
+    "% of true explants)\n")
+cat("  PPV:", round(sum(status56_in_cohort$has_explant) / nrow(status56_in_cohort) * 100, 1), "%\n")
+cat("  Specificity:", round(never_56_no_explant / without_explant * 100, 1), "%\n")
+cat("  Interpretation: Status 5/6 is an unreliable explant indicator\n")
+```
