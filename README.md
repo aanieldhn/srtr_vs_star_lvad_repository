@@ -1,2 +1,10 @@
 This is the publicly available GitHub repository for the manuscript "Artifactual Declines in Durable LVAD Utilization among Heart Transplant Candidates: Selection Bias in Transplant Registries." All code for data cleaning, analyses, and figure/table generation can be found within this repository. We have also uploaded copies of the STAR Registry Data Dictionary and the STAR File User Guide. To reproduce the analyses, one only needs to run the entire script of the RMD entitled "srtr_vs_star_complete.Rmd". However, one must have access to both the complete STAR registry and the SRTR Standard Analysis Files and Heart Justification Files. Both databases can be obtained through data use agreements (typically requiring a priori IRB approval) with the OPTN and SRTR, respectively.
 
+The "data_cleaning.RMD" file must be run first as this has the code for the parent datasets and required packages. This file also includes the initial code for creating the LVAD cohorts in both STAR and SRTR separately. Both Figures 1 and 2 are produced using this code.
+
+Next, please run "competing_risks_analysis.RMD." This file contains the code necessary for performing the competing risks analysis showcased in Figure 3. Then, please run "star_reconstitution_analysis_and_iabp.RMD," which demonstrates how the ascertainment bias in STAR can be rectified by adding all status justification files to the candidate registration files to identify all candidates supported by LVADs, including those who are still actively listed. Figure 4 is produced using this code. 
+
+Finally, the file "tables.RMD" has the code for producing all of the supplemental tables as well as Table 1.
+
+The "status_5_6_proxy_analysis.RMD" file provides code testing whether status 5 and 6 are a good proxy for LVAD explantation given that the SRTR does not include information on when LVAD explantation occurred. We demonstrate that status 5/6 is an incredibly poor proxy, and we decided to assume that no LVADs were explanted prior to waitlist removal, as explained in the main text and supplemental methods. 
+
